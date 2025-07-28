@@ -1,0 +1,89 @@
+#define BLYNK_TEMPLATE_ID "TMPL6lTfHvxJ8"
+#define BLYNK_TEMPLATE_NAME "Meth Zero"
+#define BLYNK_AUTH_TOKEN "fve2UXOvRdJ378869AFwUyi182xbcY_G"  // Your Blynk Auth Token
+
+#define BLYNK_PRINT Serial
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// Set up LCD (I2C Address, columns, rows)
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// WiFi credentials
+char ssid[] = "JG";       // Your mobile hotspot SSID
+char pass[] = "12345678";  // Your mobile hotspot password
+
+// Pin definitions
+int mq4AnalogPin = 34;  // MQ-4 analog output (A0)
+int buzzerPin = 23;     // Buzzer pin
+int redLedPin = 25;     // Red LED pin
+int greenLedPin = 26;   // Green LED pin
+int threshold = 1900;   // Methane threshold (adjust based on calibration)
+
+// Blynk virtual pin for methane level display
+#define VIRTUAL_METHANE_LEVEL V1
+
+void setup() {
+  // Initialize serial monitor
+  Serial.begin(115200);
+
+  // Initialize LCD
+  lcd.init();
+  lcd.backlight();
+  
+  // Initialize the pins
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(redLedPin, OUTPUT);
+  pinMode(greenLedPin, OUTPUT);
+  pinMode(mq4AnalogPin, INPUT);
+
+  // Connect to WiFi and Blynk
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+
+  // Wait for connection
+  while (Blynk.connect() == false) {
+    // Wait until connected to Blynk server
+  }
+
+  // Display initial "Safe" status
+  lcd.setCursor(0, 0);
+  lcd.print("                ");  // Clear the line
+  lcd.setCursor(0, 0);
+  lcd.print("Safe");
+}
+
+void loop() {
+  Blynk.run();  // Run Blynk
+
+  // Read methane level
+  int methaneLevel = analogRead(mq4AnalogPin);
+  
+  // Send methane level to Blynk app (V1)
+  Blynk.virtualWrite(VIRTUAL_METHANE_LEVEL, methaneLevel);
+
+  // Clear the first line before displaying the status
+  lcd.setCursor(0, 0);  
+  lcd.print("                ");  // Clear the line completely
+
+  // Check if methane level exceeds the threshold
+  if (methaneLevel > threshold) {
+    lcd.setCursor(0, 0);
+    lcd.print("  Dangerous!");  // Show warning on LCD
+    digitalWrite(buzzerPin, HIGH);  // Activate buzzer
+    digitalWrite(redLedPin, HIGH);  // Turn on red LED
+    digitalWrite(greenLedPin, LOW); // Turn off green LED
+    
+    // Trigger event via Blynk (logEvent for notification)
+    Blynk.logEvent("methane_high_alert", "Methane level is high!");
+  } else {
+    lcd.setCursor(0, 0);
+    lcd.print("  Safe      ");  // Show safe status on LCD
+    digitalWrite(buzzerPin, LOW);  // Deactivate buzzer
+    digitalWrite(redLedPin, LOW);  // Turn off red LED
+    digitalWrite(greenLedPin, HIGH); // Turn on green LED
+  }
+
+  delay(1000);  // Delay for 1 second
+}
